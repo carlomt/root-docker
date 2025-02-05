@@ -15,7 +15,7 @@ COPY packages packages
 
 RUN apt-get update -qq && \
     ln -sf /usr/share/zoneinfo/UTC /etc/localtime && \
-    apt-get -y install $(cat packages) wget git && \
+    apt-get -y install $(cat packages) wget git dpkg-dev && \
     apt-get autoremove -y && \
     apt-get clean -y && \
     rm -rf /var/cache/apt/archives/* && \
@@ -55,7 +55,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     -DCMAKE_INSTALL_ICONDIR=share/root/icons \
     -DCMAKE_INSTALL_INCLUDEDIR=include/ROOT \
     -DCMAKE_INSTALL_JSROOTDIR=share/root/js \
-    -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu \
+    -DCMAKE_INSTALL_LIBDIR=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
     -DCMAKE_INSTALL_MACRODIR=share/root/macros \
     -DCMAKE_INSTALL_MANDIR=share/man \
     -DCMAKE_INSTALL_OPENUI5DIR=share/root/ui5 \
