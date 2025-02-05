@@ -29,6 +29,7 @@ ARG ROOT_VERSION=latest-stable
 ARG CMAKE_CXX_STANDARD=17
 
 RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
+    && arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
     && if [ -z "$(git ls-remote --heads $ROOT_GIT_URL $ROOT_VERSION)" ] ; then \
     export ROOT_GIT_REVISION="v$(echo $ROOT_VERSION | cut -d. -f1)-$(echo $ROOT_VERSION | cut -d. -f2)-$(echo $ROOT_VERSION | cut -d. -f3)" \
     ; else \
@@ -46,7 +47,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     # For ROOT version 6.26.00 it is necessary to set `-Druntime_cxxmodules=OFF` (https://github.com/root-project/root/pull/10198)
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_BINDIR=bin \
-    -DCMAKE_INSTALL_CMAKEDIR=lib/x86_64-linux-gnu/cmake/ROOT \
+    -DCMAKE_INSTALL_CMAKEDIR=lib/${arch}/cmake/ROOT \
     -DCMAKE_INSTALL_DATAROOTDIR=share \
     -DCMAKE_INSTALL_DATADIR=share/root \
     -DCMAKE_INSTALL_DOCDIR=share/doc/root \
@@ -55,7 +56,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     -DCMAKE_INSTALL_ICONDIR=share/root/icons \
     -DCMAKE_INSTALL_INCLUDEDIR=include/ROOT \
     -DCMAKE_INSTALL_JSROOTDIR=share/root/js \
-    -DCMAKE_INSTALL_LIBDIR=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) \
+    -DCMAKE_INSTALL_LIBDIR=lib/${arch} \
     -DCMAKE_INSTALL_MACRODIR=share/root/macros \
     -DCMAKE_INSTALL_MANDIR=share/man \
     -DCMAKE_INSTALL_OPENUI5DIR=share/root/ui5 \
