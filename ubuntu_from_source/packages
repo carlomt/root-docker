@@ -4,8 +4,8 @@ curl
 davix-dev
 dcap-dev
 fonts-freefont-ttf
-g++
-gcc
+clang-12
+clang++-12
 gfortran
 libafterimage-dev
 libcfitsio-dev
@@ -41,6 +41,7 @@ libz-dev
 libzstd-dev
 locales
 make
+ninja-build
 python3-dev
 python3-numpy
 srm-ifce-dev

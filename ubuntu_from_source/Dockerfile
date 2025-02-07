@@ -11,6 +11,9 @@ LABEL maintainer.email="root-dev@cern.ch"
 
 ENV LANG=C.UTF-8
 
+ENV CC=/usr/bin/clang
+ENV CXX=/usr/bin/clang++
+
 COPY packages packages
 
 RUN apt-get update -qq && \
@@ -40,7 +43,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     && git clone --branch $ROOT_GIT_REVISION --depth=1 $ROOT_GIT_URL /tmp/source \
     && cd /tmp/source \
     && mkdir -p /tmp/build &&  cd /tmp/build \
-    && cmake /tmp/source \
+    && cmake -G Ninja /tmp/source \
     -DCMAKE_CXX_STANDARD=$CMAKE_CXX_STANDARD \
     -Dgnuinstall=ON \
     -Dsoversion=ON \
@@ -64,7 +67,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     -DCMAKE_INSTALL_SRCDIR=/dev/null \
     -DCMAKE_INSTALL_SYSCONFDIR=/etc/root \
     -DCMAKE_INSTALL_TUTDIR=share/root/tutorials \
-    && make -j$(nproc) install \
+    && ninja -j$(( $(nproc) / 2 )) install \
     && rm -rf /tmp/build /tmp/source
 
 CMD ["root", "-b"]
