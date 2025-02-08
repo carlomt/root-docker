@@ -47,6 +47,7 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     -DCMAKE_CXX_STANDARD=$CMAKE_CXX_STANDARD \
     -Dgnuinstall=ON \
     -Dsoversion=ON \
+    -Dmathmore=ON \
     # For ROOT version 6.26.00 it is necessary to set `-Druntime_cxxmodules=OFF` (https://github.com/root-project/root/pull/10198)
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_BINDIR=bin \
