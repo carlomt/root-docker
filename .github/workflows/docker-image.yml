@@ -23,8 +23,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set ROOT_VERSION environment variable
-        run: echo "ROOT_VERSION=$(cat VERSION)" >> $GITHUB_ENV
-        run: echo "ROOT_VERSION=$(cat VERSION)"
+        run: |
+          echo "ROOT_VERSION=$(cat VERSION)" >> $GITHUB_ENV
+          echo "ROOT_VERSION=$(cat VERSION)"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to Docker Hub
