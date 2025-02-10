@@ -34,9 +34,10 @@ jobs:
           context: ./ubuntu_from_source
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/root:latest-${{matrix.arch}}
-            ${{ secrets.DOCKER_USERNAME }}/root:${{ env.ROOT_VERSION }}-${{matrix.arch}}
-          platforms: linux/arm64
+            ${{ secrets.DOCKER_USERNAME }}/root:latest-${{ matrix.arch }}
+            ${{ secrets.DOCKER_USERNAME }}/root:${{ env.ROOT_VERSION }}-${{ matrix.arch }}
+          platforms: linux/${{ matrix.arch }}
+
 
   docker_manifest:
     needs: docker_build
