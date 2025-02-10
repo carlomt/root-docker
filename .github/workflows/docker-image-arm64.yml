@@ -35,6 +35,6 @@ jobs:
         with:
           context: ./ubuntu_from_source
           push: true
-          tags: carlomt/root:$ROOT_VERSION-arm, carlomt/root:latest-arm
+          tags: carlomt/root:latest-arm
           platforms: linux/arm64
 
