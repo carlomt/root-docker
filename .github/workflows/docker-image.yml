@@ -53,13 +53,11 @@ jobs:
           password: ${{secrets.DOCKERHUB_TOKEN}}
       - name: Create and push Docker manifest for "latest"
         run: |
-          docker manifest create ${{env.USER}}/root:latest \
+          docker buildx imagetools create -t ${{env.USER}}/root:latest \
             ${{env.USER}}/root:latest-amd64 \
             ${{env.USER}}/root:latest-arm64
-          docker manifest push ${{env.USER}}/root:latest
       - name: Create and push Docker manifest for versioned tag
         run: |
-          docker manifest create ${{env.USER}}/root:${ROOT_VERSION} \
+          docker buildx imagetools create -t ${{env.USER}}/root:${ROOT_VERSION} \
             ${{env.USER}}/root:${ROOT_VERSION}-amd64 \
             ${{env.USER}}/root:${ROOT_VERSION}-arm64
-          docker manifest push ${{env.USER}}/root:${ROOT_VERSION}
