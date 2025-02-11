@@ -5,9 +5,6 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-
-env:
-  USER: ${{ secrets.DOCKER_USERNAME }}
     
 jobs:
   docker_build:
@@ -20,6 +17,8 @@ jobs:
           - os: ubuntu-22.04-arm
             arch: arm64
     steps:
+      env:
+        USER: ${{ secrets.DOCKER_USERNAME }}
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set ROOT_VERSION environment variable
