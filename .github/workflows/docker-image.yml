@@ -45,6 +45,8 @@ jobs:
   docker_manifest:
     needs: docker_build
     runs-on: ubuntu-22.04
+    env:
+      ROOT_VERSION: ${{ needs.docker_build.outputs.root_version }}
     steps:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -59,5 +61,5 @@ jobs:
       - name: Create and push Docker manifest for versioned tag
         run: |
           docker buildx imagetools create -t ${{env.USER}}/root:${ROOT_VERSION} \
-            ${{env.USER}}/root:${{ env.ROOT_VERSION }}-amd64 \
-            ${{env.USER}}/root:${{ env.ROOT_VERSION }}-arm64
+            ${{env.USER}}/root:${ROOT_VERSION}-amd64 \
+            ${{env.USER}}/root:${ROOT_VERSION}-arm64
