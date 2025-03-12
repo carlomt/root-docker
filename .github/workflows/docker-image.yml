@@ -48,6 +48,8 @@ jobs:
     env:
       ROOT_VERSION: ${{ needs.docker_build.outputs.root_version }}
     steps:
+      - name: Set ROOT_VERSION environment variable
+        run: echo "ROOT_VERSION=$(cat VERSION)" >> $GITHUB_ENV
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -58,8 +60,8 @@ jobs:
           docker buildx imagetools create -t ${{env.USER}}/root:latest \
             ${{env.USER}}/root:latest-amd64 \
             ${{env.USER}}/root:latest-arm64
-      - name: Create and push Docker manifest for versioned tag
-        run: |
-          docker buildx imagetools create -t ${{env.USER}}/root:${ROOT_VERSION} \
-            ${{env.USER}}/root:${ROOT_VERSION}-amd64 \
-            ${{env.USER}}/root:${ROOT_VERSION}-arm64
+      #- name: Create and push Docker manifest for versioned tag
+      #  run: |
+      #    docker buildx imagetools create -t ${{env.USER}}/root:${ROOT_VERSION} \
+      #      ${{env.USER}}/root:${ROOT_VERSION}-amd64 \
+      #      ${{env.USER}}/root:${ROOT_VERSION}-arm64
