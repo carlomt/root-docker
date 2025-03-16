@@ -68,7 +68,8 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
     -DCMAKE_INSTALL_SRCDIR=/dev/null \
     -DCMAKE_INSTALL_SYSCONFDIR=/etc/root \
     -DCMAKE_INSTALL_TUTDIR=share/root/tutorials \
-    && ninja -j$(( $(nproc) / 2 )) install \
+    # && ninja -j$(( $(nproc) / 2 )) install \
+    && ninja install \    
     && rm -rf /tmp/build /tmp/source
 
 CMD ["root", "-b"]
