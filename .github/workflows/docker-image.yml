@@ -32,12 +32,12 @@ jobs:
             context: ./ubuntu24_from_source
             runner: ubuntu-24.04-arm
             arch: arm64
-          - distro: alma9
-            context: ./alma9_from_source
+          - distro: alma10
+            context: ./alma10_from_source
             runner: ubuntu-24.04
             arch: amd64
-          - distro: alma9
-            context: ./alma9_from_source
+          - distro: alma10
+            context: ./alma10_from_source
             runner: ubuntu-24.04-arm
             arch: arm64
 
@@ -121,7 +121,7 @@ jobs:
       matrix:
         include:
           - distro: ubuntu24
-          - distro: alma9
+          - distro: alma10
 
     steps:
       - name: Checkout

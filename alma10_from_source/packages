@@ -12,7 +12,6 @@ git
 glibc-langpack-en
 gsl-devel
 gzip
-krb5-devel
 libX11-devel
 libXext-devel
 libXft-devel
@@ -37,5 +36,6 @@ tar
 tbb-devel
 unzip
 wget
+xrootd-devel
 xz-devel
 zlib-devel

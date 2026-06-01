@@ -1,10 +1,10 @@
-ARG ROOT_VERSION=6.30.00
+ARG ROOT_VERSION=6.40.00
 ARG CMAKE_CXX_STANDARD=17
 
-FROM almalinux:9
+FROM almalinux:10
 
-LABEL maintainer.name="Carlo Mancini Terracciano"
-LABEL maintainer.email="carlo.mancini-terracciano@uniroma1.it"
+LABEL maintainer.name="ROOT team"
+LABEL maintainer.email="root-dev@cern.ch"
 
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
@@ -12,8 +12,7 @@ ENV LC_ALL=C.UTF-8
 COPY packages packages
 
 RUN dnf -y update \
-    && dnf -y install dnf-plugins-core epel-release \
-    && /usr/bin/crb enable \
+    && dnf -y install epel-release \
     && dnf -y install $(cat packages) \
     && dnf clean all \
     && rm -rf /var/cache/dnf
@@ -33,15 +32,18 @@ RUN ROOT_GIT_URL=https://github.com/root-project/root.git \
         -Dgnuinstall=ON \
         -Dsoversion=ON \
         -Dmathmore=ON \
+        -Dxrootd=ON \
+	-Dbuiltin_xrootd=OFF \
+        -Dbuiltin_vdt=ON \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_BINDIR=bin \
         -DCMAKE_INSTALL_LIBDIR=lib64 \
         -DCMAKE_INSTALL_CMAKEDIR=lib64/cmake/ROOT \
         -DCMAKE_INSTALL_INCLUDEDIR=include/ROOT \
-        -DCMAKE_INSTALL_PYTHONDIR=lib64/python3.9/site-packages \
+        -DCMAKE_INSTALL_PYTHONDIR=lib64/python3.12/site-packages \
         -DCMAKE_INSTALL_DATADIR=share/root \
         -DCMAKE_INSTALL_SYSCONFDIR=/etc/root \
-    && ninja -C /tmp/build install \
+    && ninja -C /tmp/build  install \
     && rm -rf /tmp/build /tmp/source
 
 CMD ["root", "-b"]
