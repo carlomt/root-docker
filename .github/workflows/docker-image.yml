@@ -5,69 +5,145 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 env:
   USER: ${{ secrets.DOCKERHUB_USERNAME }}
 
 jobs:
   docker_build:
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.distro }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
+          - distro: ubuntu24
+            context: ./ubuntu24_from_source
+            runner: ubuntu-24.04
             arch: amd64
-          - os: ubuntu-24.04-arm
+          - distro: ubuntu24
+            context: ./ubuntu24_from_source
+            runner: ubuntu-24.04-arm
             arch: arm64
-    outputs:
-      root_version: ${{ steps.root_version.outputs.ROOT_VERSION }}
+          - distro: alma9
+            context: ./alma9_from_source
+            runner: ubuntu-24.04
+            arch: amd64
+          - distro: alma9
+            context: ./alma9_from_source
+            runner: ubuntu-24.04-arm
+            arch: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set ROOT_VERSION environment variable
-        id: root_version
         run: |
           ROOT_VERSION=$(cat VERSION)
-          echo "ROOT_VERSION=$ROOT_VERSION" >> $GITHUB_ENV
-          echo "ROOT_VERSION=$ROOT_VERSION" >> $GITHUB_OUTPUT
+          echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
+
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
           username: ${{ env.USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push the Docker image
-        uses: docker/build-push-action@v6
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v7
         with:
-          context: ./ubuntu24_from_source
-          push: true
+          context: ${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ${{ env.USER }}/root:latest-${{ matrix.arch }}
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.arch }}
+            ${{ env.USER }}/root:latest-${{ matrix.distro }}-${{ matrix.arch }}
+            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-${{ matrix.arch }}
           platforms: linux/${{ matrix.arch }}
           build-args: |
             ROOT_VERSION=${{ env.ROOT_VERSION }}
             CMAKE_CXX_STANDARD=17
+          cache-from: type=gha,scope=${{ matrix.distro }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.distro }}-${{ matrix.arch }}
 
   docker_manifest:
+    name: Create manifest ${{ matrix.distro }}
     needs: docker_build
-    runs-on: ubuntu-22.04
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu24
+          - distro: alma9
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set ROOT_VERSION environment variable
+        run: |
+          ROOT_VERSION=$(cat VERSION)
+          echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
+
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ env.USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Create and push Docker manifest for "latest"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create and push Docker manifest for latest-${{ matrix.distro }}
         run: |
-          docker buildx imagetools create -t ${{ env.USER }}/root:latest \
-            ${{ env.USER }}/root:latest-amd64 \
-            ${{ env.USER }}/root:latest-arm64
+          docker buildx imagetools create \
+            -t ${{ env.USER }}/root:latest-${{ matrix.distro }} \
+            ${{ env.USER }}/root:latest-${{ matrix.distro }}-amd64 \
+            ${{ env.USER }}/root:latest-${{ matrix.distro }}-arm64
+
+      - name: Create and push Docker manifest for versioned ${{ matrix.distro }} tag
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }} \
+            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-amd64 \
+            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-arm64
+
+  docker_default_manifest:
+    name: Create default Ubuntu manifest aliases
+    needs: docker_manifest
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set ROOT_VERSION environment variable
+        run: |
+          ROOT_VERSION=$(cat VERSION)
+          echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ env.USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create and push Docker manifest for latest
+        run: |
+          docker buildx imagetools create \
+            -t ${{ env.USER }}/root:latest \
+            ${{ env.USER }}/root:latest-ubuntu24-amd64 \
+            ${{ env.USER }}/root:latest-ubuntu24-arm64
+
       - name: Create and push Docker manifest for versioned tag
         run: |
-          docker buildx imagetools create -t ${{ env.USER }}/root:${{ needs.docker_build.outputs.root_version }} \
-            ${{ env.USER }}/root:${{ needs.docker_build.outputs.root_version }}-amd64 \
-            ${{ env.USER }}/root:${{ needs.docker_build.outputs.root_version }}-arm64
+          docker buildx imagetools create \
+            -t ${{ env.USER }}/root:${{ env.ROOT_VERSION }} \
+            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-ubuntu24-amd64 \
+            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-ubuntu24-arm64
