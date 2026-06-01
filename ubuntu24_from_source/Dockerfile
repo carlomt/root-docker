@@ -3,8 +3,8 @@ ARG CMAKE_CXX_STANDARD=17
 
 FROM ubuntu:24.04
 
-LABEL maintainer.name="ROOT team"
-LABEL maintainer.email="root-dev@cern.ch"
+LABEL maintainer.name="Carlo Mancini Terracciano"
+LABEL maintainer.email="carlo.mancini-terracciano@uniroma1.it"
 
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
