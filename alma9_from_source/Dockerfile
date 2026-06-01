@@ -13,7 +13,7 @@ COPY packages packages
 
 RUN dnf -y update \
     && dnf -y install dnf-plugins-core epel-release \
-    && dnf config-manager --set-enabled crb \
+    && /usr/bin/crb enable \
     && dnf -y install $(cat packages) \
     && dnf clean all \
     && rm -rf /var/cache/dnf
