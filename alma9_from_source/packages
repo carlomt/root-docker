@@ -6,6 +6,7 @@ diffutils
 file
 gcc
 gcc-c++
+giflib-devel
 git
 glibc-langpack-en
 gsl-devel
