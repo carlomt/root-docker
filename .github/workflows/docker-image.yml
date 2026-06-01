@@ -46,6 +46,9 @@ jobs:
             ${{ env.USER }}/root:latest-${{ matrix.arch }}
             ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.arch }}
           platforms: linux/${{ matrix.arch }}
+          build-args: |
+            ROOT_VERSION=${{ env.ROOT_VERSION }}
+            CMAKE_CXX_STANDARD=17
 
   docker_manifest:
     needs: docker_build
