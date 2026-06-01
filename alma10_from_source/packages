@@ -36,6 +36,9 @@ tar
 tbb-devel
 unzip
 wget
+xrootd
+xrootd-client
+xrootd-client-devel
 xrootd-devel
 xz-devel
 zlib-devel
