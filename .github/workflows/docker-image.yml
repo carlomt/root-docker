@@ -8,12 +8,18 @@ on:
   workflow_dispatch:
 
 env:
-  USER: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/root
 
 jobs:
   docker_build:
     name: Build ${{ matrix.distro }} ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
+
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +40,7 @@ jobs:
             context: ./alma9_from_source
             runner: ubuntu-24.04-arm
             arch: arm64
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,6 +50,10 @@ jobs:
           ROOT_VERSION=$(cat VERSION)
           echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
 
+      - name: Set image names
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/root" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -50,17 +61,44 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
-          username: ${{ env.USER }}
+          username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          tags=""
+
+          # Versioned per-architecture tags for all distributions.
+          tags+="${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-${{ matrix.arch }}"$'\n'
+          tags+="${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-${{ matrix.arch }}"$'\n'
+
+          # latest is published only for Ubuntu.
+          if [ "${{ matrix.distro }}" = "ubuntu24" ]; then
+            tags+="${DOCKERHUB_IMAGE}:latest-ubuntu24-${{ matrix.arch }}"$'\n'
+            tags+="${GHCR_IMAGE}:latest-ubuntu24-${{ matrix.arch }}"$'\n'
+          fi
+
+          {
+            echo "tags<<EOF"
+            printf "%s" "$tags"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: |
-            ${{ env.USER }}/root:latest-${{ matrix.distro }}-${{ matrix.arch }}
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-${{ matrix.arch }}
+          tags: ${{ steps.tags.outputs.tags }}
           platforms: linux/${{ matrix.arch }}
           build-args: |
             ROOT_VERSION=${{ env.ROOT_VERSION }}
@@ -73,12 +111,18 @@ jobs:
     needs: docker_build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      packages: write
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - distro: ubuntu24
           - distro: alma9
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,34 +132,66 @@ jobs:
           ROOT_VERSION=$(cat VERSION)
           echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
 
+      - name: Set image names
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/root" >> "$GITHUB_ENV"
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
-          username: ${{ env.USER }}
+          username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Create and push Docker manifest for latest-${{ matrix.distro }}
+      - name: Create and push Docker Hub manifest for versioned ${{ matrix.distro }} tag
         run: |
           docker buildx imagetools create \
-            -t ${{ env.USER }}/root:latest-${{ matrix.distro }} \
-            ${{ env.USER }}/root:latest-${{ matrix.distro }}-amd64 \
-            ${{ env.USER }}/root:latest-${{ matrix.distro }}-arm64
+            -t ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }} \
+            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-amd64 \
+            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-arm64
 
-      - name: Create and push Docker manifest for versioned ${{ matrix.distro }} tag
+      - name: Create and push GHCR manifest for versioned ${{ matrix.distro }} tag
         run: |
           docker buildx imagetools create \
-            -t ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }} \
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-amd64 \
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-${{ matrix.distro }}-arm64
+            -t ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }} \
+            ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-amd64 \
+            ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-arm64
+
+      - name: Create and push Docker Hub manifest for latest Ubuntu
+        if: matrix.distro == 'ubuntu24'
+        run: |
+          docker buildx imagetools create \
+            -t ${DOCKERHUB_IMAGE}:latest-ubuntu24 \
+            ${DOCKERHUB_IMAGE}:latest-ubuntu24-amd64 \
+            ${DOCKERHUB_IMAGE}:latest-ubuntu24-arm64
+
+      - name: Create and push GHCR manifest for latest Ubuntu
+        if: matrix.distro == 'ubuntu24'
+        run: |
+          docker buildx imagetools create \
+            -t ${GHCR_IMAGE}:latest-ubuntu24 \
+            ${GHCR_IMAGE}:latest-ubuntu24-amd64 \
+            ${GHCR_IMAGE}:latest-ubuntu24-arm64
 
   docker_default_manifest:
     name: Create default Ubuntu manifest aliases
     needs: docker_manifest
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -125,25 +201,50 @@ jobs:
           ROOT_VERSION=$(cat VERSION)
           echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
 
+      - name: Set image names
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/root" >> "$GITHUB_ENV"
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
-          username: ${{ env.USER }}
+          username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Create and push Docker manifest for latest
+      - name: Create and push Docker Hub manifest for latest
         run: |
           docker buildx imagetools create \
-            -t ${{ env.USER }}/root:latest \
-            ${{ env.USER }}/root:latest-ubuntu24-amd64 \
-            ${{ env.USER }}/root:latest-ubuntu24-arm64
+            -t ${DOCKERHUB_IMAGE}:latest \
+            ${DOCKERHUB_IMAGE}:latest-ubuntu24-amd64 \
+            ${DOCKERHUB_IMAGE}:latest-ubuntu24-arm64
 
-      - name: Create and push Docker manifest for versioned tag
+      - name: Create and push Docker Hub manifest for versioned tag
         run: |
           docker buildx imagetools create \
-            -t ${{ env.USER }}/root:${{ env.ROOT_VERSION }} \
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-ubuntu24-amd64 \
-            ${{ env.USER }}/root:${{ env.ROOT_VERSION }}-ubuntu24-arm64
+            -t ${DOCKERHUB_IMAGE}:${ROOT_VERSION} \
+            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-ubuntu24-amd64 \
+            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-ubuntu24-arm64
+
+      - name: Create and push GHCR manifest for latest
+        run: |
+          docker buildx imagetools create \
+            -t ${GHCR_IMAGE}:latest \
+            ${GHCR_IMAGE}:latest-ubuntu24-amd64 \
+            ${GHCR_IMAGE}:latest-ubuntu24-arm64
+
+      - name: Create and push GHCR manifest for versioned tag
+        run: |
+          docker buildx imagetools create \
+            -t ${GHCR_IMAGE}:${ROOT_VERSION} \
+            ${GHCR_IMAGE}:${ROOT_VERSION}-ubuntu24-amd64 \
+            ${GHCR_IMAGE}:${ROOT_VERSION}-ubuntu24-arm64
