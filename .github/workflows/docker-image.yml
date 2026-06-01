@@ -15,9 +15,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             arch: amd64
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             arch: arm64
     outputs:
       root_version: ${{ steps.root_version.outputs.ROOT_VERSION }}
@@ -40,7 +40,7 @@ jobs:
       - name: Build and push the Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./ubuntu_from_source
+          context: ./ubuntu24_from_source
           push: true
           tags: |
             ${{ env.USER }}/root:latest-${{ matrix.arch }}
