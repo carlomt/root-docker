@@ -28,22 +28,18 @@ jobs:
             context: ./ubuntu24_from_source
             runner: ubuntu-24.04
             arch: amd64
-            build_jobs: 2
           - distro: ubuntu24
             context: ./ubuntu24_from_source
             runner: ubuntu-24.04-arm
             arch: arm64
-            build_jobs: 2
           - distro: alma10
             context: ./alma10_from_source
             runner: ubuntu-24.04
             arch: amd64
-            build_jobs: 2
           - distro: alma10
             context: ./alma10_from_source
             runner: ubuntu-24.04-arm
             arch: arm64
-            build_jobs: 2
 
     steps:
       - name: Checkout
@@ -87,7 +83,6 @@ jobs:
           build-args: |
             ROOT_VERSION=${{ env.ROOT_VERSION }}
             CMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }}
-            BUILD_JOBS=${{ matrix.build_jobs }}
           cache-from: type=gha,scope=${{ matrix.distro }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.distro }}-${{ matrix.arch }}
 
@@ -101,7 +96,6 @@ jobs:
           build-args: |
             ROOT_VERSION=${{ env.ROOT_VERSION }}
             CMAKE_CXX_STANDARD=${{ env.CMAKE_CXX_STANDARD }}
-            BUILD_JOBS=${{ matrix.build_jobs }}
           cache-from: type=gha,scope=${{ matrix.distro }}-${{ matrix.arch }}
 
       - name: Export Docker Hub digest
