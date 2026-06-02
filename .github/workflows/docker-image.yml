@@ -10,6 +10,7 @@ on:
 env:
   DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/root
+  # FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   docker_build:
@@ -19,6 +20,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
 
     strategy:
       fail-fast: false
@@ -72,39 +74,50 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute image tags
-        id: tags
-        run: |
-          tags=""
-
-          # Versioned per-architecture tags for all distributions.
-          tags+="${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-${{ matrix.arch }}"$'\n'
-          tags+="${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-${{ matrix.arch }}"$'\n'
-
-          # latest is published only for Ubuntu.
-          if [ "${{ matrix.distro }}" = "ubuntu24" ]; then
-            tags+="${DOCKERHUB_IMAGE}:latest-ubuntu24-${{ matrix.arch }}"$'\n'
-            tags+="${GHCR_IMAGE}:latest-ubuntu24-${{ matrix.arch }}"$'\n'
-          fi
-
-          {
-            echo "tags<<EOF"
-            printf "%s" "$tags"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Build and push Docker image
+      - name: Build Docker image for pull request
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.tags.outputs.tags }}
+          push: false
           platforms: linux/${{ matrix.arch }}
           build-args: |
             ROOT_VERSION=${{ env.ROOT_VERSION }}
             CMAKE_CXX_STANDARD=17
           cache-from: type=gha,scope=${{ matrix.distro }}-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.distro }}-${{ matrix.arch }}
+
+      - name: Build and push Docker image by digest
+        if: github.event_name != 'pull_request'
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: |
+            type=image,name=${{ env.DOCKERHUB_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+            type=image,name=${{ env.GHCR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            ROOT_VERSION=${{ env.ROOT_VERSION }}
+            CMAKE_CXX_STANDARD=17
+          cache-from: type=gha,scope=${{ matrix.distro }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.distro }}-${{ matrix.arch }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.distro }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
   docker_manifest:
     name: Create manifest ${{ matrix.distro }}
@@ -115,6 +128,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
 
     strategy:
       fail-fast: false
@@ -125,7 +139,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set ROOT_VERSION environment variable
         run: |
@@ -152,99 +166,87 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Download digests
+        uses: actions/download-artifact@v7
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.distro }}-*
+          merge-multiple: true
+
       - name: Create and push Docker Hub manifest for versioned ${{ matrix.distro }} tag
         run: |
+          docker_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            docker_refs+=("${DOCKERHUB_IMAGE}@sha256:${digest}")
+          done
+
           docker buildx imagetools create \
             -t ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }} \
-            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-amd64 \
-            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-arm64
+            "${docker_refs[@]}"
 
       - name: Create and push GHCR manifest for versioned ${{ matrix.distro }} tag
         run: |
+          ghcr_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            ghcr_refs+=("${GHCR_IMAGE}@sha256:${digest}")
+          done
+
           docker buildx imagetools create \
             -t ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }} \
-            ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-amd64 \
-            ${GHCR_IMAGE}:${ROOT_VERSION}-${{ matrix.distro }}-arm64
+            "${ghcr_refs[@]}"
 
       - name: Create and push Docker Hub manifest for latest Ubuntu
         if: matrix.distro == 'ubuntu24'
         run: |
+          docker_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            docker_refs+=("${DOCKERHUB_IMAGE}@sha256:${digest}")
+          done
+
           docker buildx imagetools create \
             -t ${DOCKERHUB_IMAGE}:latest-ubuntu24 \
-            ${DOCKERHUB_IMAGE}:latest-ubuntu24-amd64 \
-            ${DOCKERHUB_IMAGE}:latest-ubuntu24-arm64
+            "${docker_refs[@]}"
 
       - name: Create and push GHCR manifest for latest Ubuntu
         if: matrix.distro == 'ubuntu24'
         run: |
+          ghcr_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            ghcr_refs+=("${GHCR_IMAGE}@sha256:${digest}")
+          done
+
           docker buildx imagetools create \
             -t ${GHCR_IMAGE}:latest-ubuntu24 \
-            ${GHCR_IMAGE}:latest-ubuntu24-amd64 \
-            ${GHCR_IMAGE}:latest-ubuntu24-arm64
+            "${ghcr_refs[@]}"
 
-  docker_default_manifest:
-    name: Create default Ubuntu manifest aliases
-    needs: docker_manifest
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set ROOT_VERSION environment variable
+      - name: Create and push Docker Hub default Ubuntu aliases
+        if: matrix.distro == 'ubuntu24'
         run: |
-          ROOT_VERSION=$(cat VERSION)
-          echo "ROOT_VERSION=$ROOT_VERSION" >> "$GITHUB_ENV"
+          docker_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            docker_refs+=("${DOCKERHUB_IMAGE}@sha256:${digest}")
+          done
 
-      - name: Set image names
-        run: |
-          echo "GHCR_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/root" >> "$GITHUB_ENV"
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ env.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Create and push Docker Hub manifest for latest
-        run: |
           docker buildx imagetools create \
             -t ${DOCKERHUB_IMAGE}:latest \
-            ${DOCKERHUB_IMAGE}:latest-ubuntu24-amd64 \
-            ${DOCKERHUB_IMAGE}:latest-ubuntu24-arm64
-
-      - name: Create and push Docker Hub manifest for versioned tag
-        run: |
-          docker buildx imagetools create \
             -t ${DOCKERHUB_IMAGE}:${ROOT_VERSION} \
-            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-ubuntu24-amd64 \
-            ${DOCKERHUB_IMAGE}:${ROOT_VERSION}-ubuntu24-arm64
+            "${docker_refs[@]}"
 
-      - name: Create and push GHCR manifest for latest
+      - name: Create and push GHCR default Ubuntu aliases
+        if: matrix.distro == 'ubuntu24'
         run: |
+          ghcr_refs=()
+          for digest_file in /tmp/digests/*; do
+            digest="$(basename "$digest_file")"
+            ghcr_refs+=("${GHCR_IMAGE}@sha256:${digest}")
+          done
+
           docker buildx imagetools create \
             -t ${GHCR_IMAGE}:latest \
-            ${GHCR_IMAGE}:latest-ubuntu24-amd64 \
-            ${GHCR_IMAGE}:latest-ubuntu24-arm64
-
-      - name: Create and push GHCR manifest for versioned tag
-        run: |
-          docker buildx imagetools create \
             -t ${GHCR_IMAGE}:${ROOT_VERSION} \
-            ${GHCR_IMAGE}:${ROOT_VERSION}-ubuntu24-amd64 \
-            ${GHCR_IMAGE}:${ROOT_VERSION}-ubuntu24-arm64
+            "${ghcr_refs[@]}"

@@ -3,8 +3,8 @@ ARG CMAKE_CXX_STANDARD=17
 
 FROM almalinux:10
 
-LABEL maintainer.name="ROOT team"
-LABEL maintainer.email="root-dev@cern.ch"
+LABEL maintainer.name="Carlo Mancini Terracciano"
+LABEL maintainer.email="carlo.mancini-terracciano@uniroma1.it"
 
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
